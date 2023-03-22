@@ -60,7 +60,7 @@ def save_image(img, img_path):
 
 
 def generate_out_img_name(config):
-    prefix = os.path.basename(config['content_img_name']).split('.')[0] + '_' + os.path.basename(config['style1_img_name']).split('.')[0] + '_' + os.path.basename(config['style2_img_name']).split('.')[0]
+    prefix = os.path.basename(config['content_img_name']).split('.')[0] + '_' + os.path.basename(config['style1_img_name']).split('.')[0] + '_' + os.path.basename(config['style2_img_name']).split('.')[0] + "_" + config['architecture']
     # called from the reconstruction script
     if 'reconstruct_script' in config:
         suffix = f'_o_{config["optimizer"]}_h_{str(config["height"])}_m_{config["model"]}{config["img_format"][1]}'
@@ -69,7 +69,7 @@ def generate_out_img_name(config):
     return prefix + suffix
 
 
-def save_and_maybe_display(optimizing_img, dump_path, config, img_id, num_of_iterations, should_display=False):
+def save_and_maybe_display(optimizing_img, dump_path, config, img_id, num_of_iterations, should_display=False, first = None):
     saving_freq = config['saving_freq']
     out_img = optimizing_img.squeeze(axis=0).to('cpu').detach().numpy()
     out_img = np.moveaxis(out_img, 0, 2)  # swap channel from 1st to 3rd position: ch, _, _ -> _, _, chr
@@ -77,7 +77,13 @@ def save_and_maybe_display(optimizing_img, dump_path, config, img_id, num_of_ite
     # for saving_freq == -1 save only the final result (otherwise save with frequency saving_freq and save the last pic)
     if img_id == num_of_iterations-1 or (saving_freq > 0 and img_id % saving_freq == 0):
         img_format = config['img_format']
-        out_img_name = str(img_id).zfill(img_format[0]) + img_format[1] if saving_freq != -1 else generate_out_img_name(config)
+        if first is None:
+            possible_name = str(img_id).zfill(img_format[0]) + img_format[1]
+        elif first:
+            possible_name = str(img_id).zfill(img_format[0]) + "_1" + img_format[1]
+        else:
+            possible_name = str(img_id).zfill(img_format[0]) + "_2" + img_format[1]
+        out_img_name = possible_name if saving_freq != -1 else generate_out_img_name(config)
         dump_img = np.copy(out_img)
         dump_img += np.array(IMAGENET_MEAN_255).reshape((1, 1, 3))
         dump_img = np.clip(dump_img, 0, 255).astype('uint8')
