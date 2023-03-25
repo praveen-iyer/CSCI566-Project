@@ -2,7 +2,7 @@ import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
 
 import torch
-from torch.optim import Adam, LBFGS
+from torch.optim import LBFGS
 from torch.autograd import Variable
 import numpy as np
 import os
@@ -38,22 +38,6 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
     total_loss = config['content_weight'] * content_loss + config['style1_weight'] * style1_loss + config['style2_weight'] * style2_loss + config['tv_weight'] * tv_loss
 
     return total_loss, content_loss, style1_loss, style2_loss, tv_loss
-
-
-def make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
-    # Builds function that performs a step in the tuning loop
-    def tuning_step(optimizing_img):
-        total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config)
-        # Computes gradients
-        total_loss.backward()
-        # Updates parameters and zeroes gradients
-        optimizer.step()
-        optimizer.zero_grad()
-        return total_loss, content_loss, style1_loss, style2_loss, tv_loss
-
-    # Returns the function that will be called inside the tuning loop
-    return tuning_step
-
 
 def neural_style_transfer(config):
     content_img_path = os.path.join(config['content_images_dir'], config['content_img_name'])
@@ -101,90 +85,50 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = {
-        "lbfgs": 1000,
-        "adam": 3000,
-    }
+    num_of_iterations = 1000
+
     if config['architecture']=="mo-net":
-        if config['optimizer'] == 'adam':
-            optimizer = Adam((optimizing_img,), lr=1e1)
-            tuning_step = make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"])
-            for cnt in range(num_of_iterations[config['optimizer']]):
-                total_loss, content_loss, style1_loss, style2_loss, tv_loss = tuning_step(optimizing_img)
-                with torch.no_grad():
-                    if cnt%5==0:
-                        print(f'Adam | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style1 loss={config["style1_weight"] * style1_loss.item():12.4f}, style2 loss={config["style2_weight"] * style2_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
-                    utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False)
-        elif config['optimizer'] == 'lbfgs':
-            # line_search_fn does not seem to have significant impact on result
-            optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations['lbfgs'], line_search_fn='strong_wolfe')
-            cnt = 0
-
-            def closure():
-                nonlocal cnt
-                if torch.is_grad_enabled():
-                    optimizer.zero_grad()
-                total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"])
-                if total_loss.requires_grad:
-                    total_loss.backward()
-                with torch.no_grad():
-                    if cnt%5==0:
-                        print(f'LBFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style1 loss={config["style1_weight"] * style1_loss.item():12.4f}, style2 loss={config["style2_weight"] * style2_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
-                    utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False)
-
-                cnt += 1
-                return total_loss
-
-            optimizer.step(closure)
+        # line_search_fn does not seem to have significant impact on result
+        optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
+        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"], num_of_iterations, dump_path, None)
 
     elif config['architecture']=="cascade-net":
-        if config['optimizer'] == 'adam':
-            pass
-        elif config['optimizer'] == 'lbfgs':
-            # line_search_fn does not seem to have significant impact on result
-            optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations['lbfgs'], line_search_fn='strong_wolfe')
-            cnt = 0
+        #Cascade Layer 1
+        optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
+        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1"], num_of_iterations, dump_path, True)
 
-            def closure1():
-                nonlocal cnt
-                if torch.is_grad_enabled():
-                    optimizer.zero_grad()
-                total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1"])
-                if total_loss.requires_grad:
-                    total_loss.backward()
-                with torch.no_grad():
-                    if cnt%5==0:
-                        print(f'LBFGS1 | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style1 loss={config["style1_weight"] * style1_loss.item():12.4f}, style2 loss={config["style2_weight"] * 0:12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
-                    utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, first = True)
-
-                cnt += 1
-                return total_loss
-
-            optimizer.step(closure1)
-
-            optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations['lbfgs'], line_search_fn='strong_wolfe')
-            cnt = 0
-
-            def closure2():
-                nonlocal cnt
-                if torch.is_grad_enabled():
-                    optimizer.zero_grad()
-                total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"])
-                if total_loss.requires_grad:
-                    total_loss.backward()
-                with torch.no_grad():
-                    if cnt%5==0:
-                        print(f'LBFGS2 | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style1 loss={config["style1_weight"] * 0:12.4f}, style2 loss={config["style2_weight"] * style2_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
-                    utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations[config['optimizer']], should_display=False, first = False)
-
-                cnt += 1
-                return total_loss
-
-            optimizer.step(closure2)
-
+        #Cascade Layer 2
+        optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
+        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
+        
+    elif config['architecture']=="cascade-net_parallel":
+        pass
 
     return dump_path
 
+def model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names, num_of_iterations, dump_path, first):
+    cnt = 0
+    def closure():
+        nonlocal cnt
+        if torch.is_grad_enabled():
+            optimizer.zero_grad()
+        total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names)
+        if total_loss.requires_grad:
+            total_loss.backward()
+        with torch.no_grad():
+            if cnt%5==0:
+                if style1_loss ==0: 
+                    style1_loss = torch.zeros_like(style2_loss)
+                if style2_loss ==0: 
+                    style2_loss = torch.zeros_like(style1_loss)
+
+                print(f'LBFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style1 loss={config["style1_weight"] * style1_loss.item():12.4f}, style2 loss={config["style2_weight"] * style2_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}')
+            utils.save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations, should_display=False, first = first)
+        
+        cnt += 1
+        return total_loss
+    
+    optimizer.step(closure)
 
 if __name__ == "__main__":
     #
@@ -212,22 +156,10 @@ if __name__ == "__main__":
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
     parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
 
-    parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
     parser.add_argument("--saving_freq", type=int, help="saving frequency for intermediate images (-1 means only final)", default=3)
     args = parser.parse_args()
-
-    # some values of weights that worked for figures.jpg, vg_starry_night.jpg (starting point for finding good images)
-    # once you understand what each one does it gets really easy -> also see README.md
-
-    # lbfgs, content init -> (cw, sw, tv) = (1e5, 3e4, 1e0)
-    # lbfgs, style   init -> (cw, sw, tv) = (1e5, 1e1, 1e-1)
-    # lbfgs, random  init -> (cw, sw, tv) = (1e5, 1e3, 1e0)
-
-    # adam, content init -> (cw, sw, tv, lr) = (1e5, 1e5, 1e-1, 1e1)
-    # adam, style   init -> (cw, sw, tv, lr) = (1e5, 1e2, 1e-1, 1e1)
-    # adam, random  init -> (cw, sw, tv, lr) = (1e5, 1e2, 1e-1, 1e1)
 
     # just wrapping settings into a dictionary
     optimization_config = dict()
