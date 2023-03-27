@@ -19,7 +19,6 @@ def global_effects(stylized_img,style_img,config,device):
         s = cv2.calcHist([stylized_img.detach().cpu().numpy().transpose((1,2,0))], [channel], None, [256], [0, 256])
         GC=GC+(np.sum(s*s1)/(np.linalg.norm(s)*np.linalg.norm(s1)))
     GC=(1/3)*GC
-    #torch.dot?
     HT = 0
     for sgm,tsr in zip(stylised_gram_matrix, target_style_representation):
         temp = np.multiply(sgm.detach().cpu(),tsr.cpu()).numpy()
@@ -55,28 +54,43 @@ def patchify_tensor(t):
     patches = np.lib.stride_tricks.as_strided(t, shape = out_shape, strides=(t.strides[0],t.strides[1],t.strides[0],t.strides[1],t.strides[2]))
     return patches
 
+class HashNumpyWrapper():
+    def __init__(self, npy):
+        self.npy = npy
+
+    def __hash__(self):
+        return hash(self.npy.tobytes())
+
+    def __eq__(self, other):
+        return np.all(self.npy == other.npy)
+
 def get_normalized_cross_correlation_measure_and_layer_lp2(stylized_feature_map, style_feature_map):
     stylized_feature_map = stylized_feature_map.detach().cpu().numpy().transpose((1,2,0))
     style_feature_map = style_feature_map.cpu().numpy().transpose((1,2,0))
     stylized_patches = patchify_tensor(stylized_feature_map)
     style_patches = patchify_tensor(style_feature_map)
 
-    unique_style_patches = {tupler(style_patches[i][j].tolist()) for j in range(style_patches.shape[1]) for i in range(style_patches.shape[0])}
+    unique_style_patches = {HashNumpyWrapper(style_patches[i][j]) for j in range(style_patches.shape[1]) for i in range(style_patches.shape[0])}
     unique_max_patches = set()
 
-    normalized_cross_correlation_measure = 0
-    for stylized_patch in stylized_patches:
-        max_val = float('-inf')
-        for style_patch in style_patches:
-            normalized_cross_correlation_measure += np.sum(np.multiply(stylized_patch, style_patch))/(np.linalg.norm(stylized_patch)*np.linalg.norm(style_patch))
-            if max_val<normalized_cross_correlation_measure:
-                max_val = normalized_cross_correlation_measure
-                max_patch = style_patch
-            max_val = max(max_val, normalized_cross_correlation_measure)
-        unique_max_patches.add(tupler(max_patch).tolist())
-        normalized_cross_correlation_measure += max_val
+    stylized_norms = np.sqrt(np.sum(stylized_patches*stylized_patches, axis = (2,3,4)))
+    style_norms = np.sqrt(np.sum(style_patches*style_patches, axis = (2,3,4)))
 
-    normalized_cross_correlation_measure /= len(stylized_patches)
+    normalized_cross_correlation_measure = 0
+    for i in range(stylized_patches.shape[0]):
+        for j in range(stylized_patches.shape[1]):
+            stylized_patch = stylized_patches[i][j]
+            stylized_norm = stylized_norms[i][j]
+            vals_numerator = np.einsum("ijhwc,hwc->ij",style_patches,stylized_patch)
+            vals_denominator = stylized_norm*style_norms
+            vals = np.divide(vals_numerator, vals_denominator)
+            max_ind = np.argmax(vals)
+            max_ind_2d = np.unravel_index(max_ind,vals.shape)
+            max_val = vals[max_ind_2d[0]][max_ind_2d[1]]
+            normalized_cross_correlation_measure += max_val
+            unique_max_patches.add(HashNumpyWrapper(style_patches[max_ind_2d[0]][max_ind_2d[1]]))
+    
+    normalized_cross_correlation_measure /= (stylized_patches.shape[0]*stylized_patches.shape[1])
     layer_lp2 = len(unique_max_patches)/len(unique_style_patches)
     return normalized_cross_correlation_measure, layer_lp2
 
