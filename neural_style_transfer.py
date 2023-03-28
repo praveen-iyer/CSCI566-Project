@@ -1,3 +1,4 @@
+from utils.evaluation_utils import global_effects, local_patterns
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
 
@@ -85,7 +86,7 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 1000
+    num_of_iterations = 50
 
     if config['architecture']=="mo-net":
         # line_search_fn does not seem to have significant impact on result
@@ -103,6 +104,13 @@ def neural_style_transfer(config):
         
     elif config['architecture']=="cascade-net_parallel":
         pass
+
+    optimizing_img1 = torch.squeeze(optimizing_img,0)
+    style1_img1 = torch.squeeze(style1_img,0)
+    ge = global_effects(optimizing_img1, style1_img1, config, device)
+    print(ge)
+    lp = local_patterns(optimizing_img1, style1_img1, config, device)
+    print(lp)
 
     return dump_path
 
@@ -154,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
     parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
+    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="mo-net")
 
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
