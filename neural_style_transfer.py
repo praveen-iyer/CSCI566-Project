@@ -109,8 +109,10 @@ def neural_style_transfer(config):
     style1_img1 = torch.squeeze(style1_img,0)
     ge = global_effects(optimizing_img1, style1_img1, config, device)
     print(ge)
-    lp = local_patterns(optimizing_img1, style1_img1, config, device)
-    print(lp)
+    cf = content_fidelity(optimizing_img1, style1_img1, config, device)
+    print(cf)
+    #lp = local_patterns(optimizing_img1, style1_img1, config, device)
+    #print(lp)
 
     return dump_path
 
