@@ -49,7 +49,7 @@ def neural_style_transfer(config):
     dump_path = os.path.join(config['output_img_dir'], out_dir_name)
     os.makedirs(dump_path, exist_ok=True)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     print(f"Device being used is {device}")
     print(f"Architecture being used is: {config['architecture']}")
 
