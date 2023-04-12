@@ -1,22 +1,25 @@
 from utils.utils import prepare_model
 from utils.utils import gram_matrix
 import numpy as np
+import torch
 import cv2
 
+def calc_cosine_similarity(i1,i2):
+    temp = torch.sum(torch.mul(i1,i2)).item()
+    n1 = torch.linalg.norm(i1).item()
+    n2 = torch.linalg.norm(i2).item()
+    return (temp)/(n1*n2)
+
 def content_fidelity(stylized_img, content_img, config, device):
-    neural_net, _, style_feature_maps_indices_names = prepare_model(config['model'], device)
-    layers = len(style_feature_maps_indices_names[1])
-    content_img_set_of_feature_maps = neural_net(content_img.unsqueeze(0))
-    c = [x for cnt, x in enumerate(content_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
-    stylised_img_set_of_feature_maps = neural_net(stylized_img.unsqueeze(0))
-    s = [x for cnt, x in enumerate(stylised_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
-    CF = 0
-    for sgm, con in zip(s, c):
-        temp = np.multiply(sgm.detach().cpu(),tsr.cpu()).numpy()
-        n1 = np.linalg.norm(sgm.detach().cpu())
-        n2 = np.linalg.norm(tsr.cpu())
-        CF += np.sum(temp)/(n1*n2)
-    CF /= layers
+    neural_net, content_feature_maps_index_name, _ = prepare_model(config['model'], device)
+    content_img_set_of_feature_maps = neural_net(content_img)
+    stylized_img_set_of_feature_maps = neural_net(stylized_img)
+    
+    content_img_representation = content_img_set_of_feature_maps[content_feature_maps_index_name[0]].squeeze(axis=0)
+    stylized_img_representation = stylized_img_set_of_feature_maps[content_feature_maps_index_name[0]].squeeze(axis=0)
+
+    CF = calc_cosine_similarity(content_img_representation, stylized_img_representation)
+
     return CF
 
 def global_effects(stylized_img,style_img,config,device):

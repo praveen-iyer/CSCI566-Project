@@ -1,4 +1,5 @@
-from utils.evaluation_utils import global_effects, local_patterns
+from copy import deepcopy
+from utils.evaluation_utils import content_fidelity, global_effects, local_patterns
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
 
@@ -62,7 +63,7 @@ def neural_style_transfer(config):
         gaussian_noise_img = np.random.normal(loc=0, scale=90., size=content_img.shape).astype(np.float32)
         init_img = torch.from_numpy(gaussian_noise_img).float().to(device)
     elif config['init_method'] == 'content':
-        init_img = content_img
+        init_img = deepcopy(content_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
@@ -105,11 +106,11 @@ def neural_style_transfer(config):
     elif config['architecture']=="cascade-net_parallel":
         pass
 
-    optimizing_img1 = torch.squeeze(optimizing_img,0)
-    style1_img1 = torch.squeeze(style1_img,0)
-    ge = global_effects(optimizing_img1, style1_img1, config, device)
-    print(ge)
-    cf = content_fidelity(optimizing_img1, style1_img1, config, device)
+    # optimizing_img1 = torch.squeeze(optimizing_img,0)
+    # style1_img1 = torch.squeeze(style1_img,0)
+    # ge = global_effects(optimizing_img1, style1_img1, config, device)
+    # print(ge)
+    cf = content_fidelity(optimizing_img, content_img, config, device)
     print(cf)
     #lp = local_patterns(optimizing_img1, style1_img1, config, device)
     #print(lp)
@@ -164,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
     parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="mo-net")
+    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
 
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
