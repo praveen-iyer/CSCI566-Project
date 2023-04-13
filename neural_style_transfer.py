@@ -1,4 +1,5 @@
 from copy import deepcopy
+import time
 from utils.evaluation_utils import content_fidelity, global_effects, local_patterns
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
@@ -87,7 +88,7 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 25
+    num_of_iterations = 100
 
     if config['architecture']=="mo-net":
         # line_search_fn does not seem to have significant impact on result
@@ -106,14 +107,19 @@ def neural_style_transfer(config):
     elif config['architecture']=="cascade-net_parallel":
         pass
 
-    # optimizing_img1 = torch.squeeze(optimizing_img,0)
-    # style1_img1 = torch.squeeze(style1_img,0)
-    # ge = global_effects(optimizing_img1, style1_img1, config, device)
-    # print(ge)
-    # cf = content_fidelity(optimizing_img, content_img, config, device)
-    # print(cf)
-    lp = local_patterns(optimizing_img, style1_img, config, device)
-    print(lp)
+    start = time.time()
+    cf = content_fidelity(optimizing_img, content_img, config, device)
+    print(f"Content Fidelity={cf} calculated in {time.time() - start}s")
+    
+    start = time.time()
+    ge_style1 = global_effects(optimizing_img, style1_img, config, device)
+    ge_style2 = global_effects(optimizing_img, style2_img, config, device)
+    print(f"Global Effects: style1={ge_style1}, style2={ge_style2} calculated in {time.time()-start}s")
+    
+    start = time.time()
+    lp_style1 = local_patterns(optimizing_img, style1_img, config, device)
+    lp_style2 = local_patterns(optimizing_img, style2_img, config, device)
+    print(f"Local Patterns: style1={lp_style1}, style2={lp_style2} calculated in {time.time() - start}s")
 
     return dump_path
 
@@ -159,13 +165,13 @@ if __name__ == "__main__":
     parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate.jpg')
     parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='flowers_crop.jpg')
     parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='vg_starry_night_resized.jpg')
-    parser.add_argument("--height", type=int, help="height of content and style images", default=400)
+    parser.add_argument("--height", type=int, help="height of content and style images", default=155)
 
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
     parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="mo-net")
+    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
 
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')

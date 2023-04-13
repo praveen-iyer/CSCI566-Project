@@ -19,29 +19,30 @@ def content_fidelity(stylized_img, content_img, config, device):
     stylized_img_representation = stylized_img_set_of_feature_maps[content_feature_maps_index_name[0]].squeeze(axis=0)
 
     CF = calc_cosine_similarity(content_img_representation, stylized_img_representation)
-
     return CF
 
 def global_effects(stylized_img,style_img,config,device):
     neural_net, _, style_feature_maps_indices_names = prepare_model(config['model'], device)
-    style_img_set_of_feature_maps = neural_net(style_img.unsqueeze(0))
+    
+    style_img_set_of_feature_maps = neural_net(style_img)
     target_style_representation = [gram_matrix(x) for cnt, x in enumerate(style_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
-    stylised_img_set_of_feature_maps = neural_net(stylized_img.unsqueeze(0))
+    
+    stylised_img_set_of_feature_maps = neural_net(stylized_img)
     stylised_gram_matrix = [gram_matrix(x) for cnt, x in enumerate(stylised_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
+    
     channels=[0,1,2]
     GC=0
     for channel in channels:
-        s1 = cv2.calcHist([style_img.cpu().numpy().transpose((1,2,0))], [channel], None, [256], [0, 256])
-        s = cv2.calcHist([stylized_img.detach().cpu().numpy().transpose((1,2,0))], [channel], None, [256], [0, 256])
-        GC=GC+(np.sum(s*s1)/(np.linalg.norm(s)*np.linalg.norm(s1)))
-    GC=(1/3)*GC
+        s1 = cv2.calcHist([style_img.squeeze(0).cpu().numpy().transpose((1,2,0))], [channel], None, [128], [0, 256])
+        s = cv2.calcHist([stylized_img.squeeze(0).detach().cpu().numpy().transpose((1,2,0))], [channel], None, [128], [0, 256])
+        GC += (np.sum(s*s1)/(np.linalg.norm(s)*np.linalg.norm(s1)))
+    GC /= len(channels)
+    
     HT = 0
     for sgm,tsr in zip(stylised_gram_matrix, target_style_representation):
-        temp = np.multiply(sgm.detach().cpu(),tsr.cpu()).numpy()
-        n1 = np.linalg.norm(sgm.detach().cpu())
-        n2 = np.linalg.norm(tsr.cpu())
-        HT += np.sum(temp)/(n1*n2)
+        HT += calc_cosine_similarity(sgm, tsr)
     HT /= len(stylised_gram_matrix)
+    
     GE = 0.5*(GC+HT)
     return GE
 
