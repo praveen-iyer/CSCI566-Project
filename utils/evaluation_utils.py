@@ -63,8 +63,8 @@ def local_patterns(stylized_image, style_image, config, device):
     stylized_img_relevant_feature_maps = [x.squeeze(0) for cnt, x in enumerate(stylized_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
     style_img_relevant_feature_maps = [x.squeeze(0) for cnt, x in enumerate(style_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
     
-    stylized_img_patches_all_layers = [patchify(x,3) for x in stylized_img_relevant_feature_maps]
-    style_img_patches_all_layers = [patchify(x,3) for x in style_img_relevant_feature_maps]
+    stylized_img_patches_all_layers = [patchify(x,10) for x in stylized_img_relevant_feature_maps]
+    style_img_patches_all_layers = [patchify(x,10) for x in style_img_relevant_feature_maps]
 
     n_layers = len(stylized_img_patches_all_layers)
     lp1,lp2 = 0,0
