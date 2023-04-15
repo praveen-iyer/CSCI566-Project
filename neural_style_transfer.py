@@ -1,3 +1,6 @@
+from copy import deepcopy
+import time
+from utils.evaluation_utils import content_fidelity, global_effects, local_patterns
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
 
@@ -48,7 +51,7 @@ def neural_style_transfer(config):
     dump_path = os.path.join(config['output_img_dir'], out_dir_name)
     os.makedirs(dump_path, exist_ok=True)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     print(f"Device being used is {device}")
     print(f"Architecture being used is: {config['architecture']}")
 
@@ -61,7 +64,7 @@ def neural_style_transfer(config):
         gaussian_noise_img = np.random.normal(loc=0, scale=90., size=content_img.shape).astype(np.float32)
         init_img = torch.from_numpy(gaussian_noise_img).float().to(device)
     elif config['init_method'] == 'content':
-        init_img = content_img
+        init_img = deepcopy(content_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
@@ -85,7 +88,7 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 1000
+    num_of_iterations = 100
 
     if config['architecture']=="mo-net":
         # line_search_fn does not seem to have significant impact on result
@@ -103,6 +106,20 @@ def neural_style_transfer(config):
         
     elif config['architecture']=="cascade-net_parallel":
         pass
+
+    start = time.time()
+    cf = content_fidelity(optimizing_img, content_img, config, device)
+    print(f"Content Fidelity={cf} calculated in {time.time() - start}s")
+    
+    start = time.time()
+    ge_style1 = global_effects(optimizing_img, style1_img, config, device)
+    ge_style2 = global_effects(optimizing_img, style2_img, config, device)
+    print(f"Global Effects: style1={ge_style1}, style2={ge_style2} calculated in {time.time()-start}s")
+    
+    start = time.time()
+    lp_style1 = local_patterns(optimizing_img, style1_img, config, device)
+    lp_style2 = local_patterns(optimizing_img, style2_img, config, device)
+    print(f"Local Patterns: style1={lp_style1}, style2={lp_style2} calculated in {time.time() - start}s")
 
     return dump_path
 
@@ -145,10 +162,10 @@ if __name__ == "__main__":
     # sorted so that the ones on the top are more likely to be changed than the ones on the bottom
     #
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content_img_name", type=str, help="content image name", default='figures.jpg')
-    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='giger_crop.jpg')
-    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='mosaic.jpg')
-    parser.add_argument("--height", type=int, help="height of content and style images", default=400)
+    parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate.jpg')
+    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='flowers_crop.jpg')
+    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='vg_starry_night_resized.jpg')
+    parser.add_argument("--height", type=int, help="height of content and style images", default=155)
 
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
