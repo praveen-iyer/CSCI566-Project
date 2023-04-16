@@ -10,7 +10,7 @@ class TransformerNet(torch.nn.Module):
         super(TransformerNet, self).__init__()
         # vit_pretrained_features = models.vit_b_16(weights = "DEFAULT", progress=show_progress).features
         self.layer_names = ['relu1', 'relu2', 'relu3', 'relu4','relu5','relu6']
-        self.content_feature_maps_index = 1  # relu2_2
+        self.content_feature_maps_index = 0  # relu2_2
         self.style_feature_maps_indices = list(range(len(self.layer_names)))  # all layers used for style representation
 
         # Initial convolution layers
