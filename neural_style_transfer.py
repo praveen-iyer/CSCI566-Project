@@ -47,7 +47,7 @@ def neural_style_transfer(config):
     style1_img_path = os.path.join(config['style_images_dir'], config['style1_img_name'])
     style2_img_path = os.path.join(config['style_images_dir'], config['style2_img_name'])
 
-    out_dir_name = f'combined_{config["architecture"]}_' + os.path.split(content_img_path)[1].split('.')[0] + '_' + os.path.split(style1_img_path)[1].split('.')[0] + '_' + os.path.split(style2_img_path)[1].split('.')[0]
+    out_dir_name = f'combined_{config["architecture"]}_{config["model"]}_' + os.path.split(content_img_path)[1].split('.')[0] + '_' + os.path.split(style1_img_path)[1].split('.')[0] + '_' + os.path.split(style2_img_path)[1].split('.')[0]
     dump_path = os.path.join(config['output_img_dir'], out_dir_name)
     os.makedirs(dump_path, exist_ok=True)
 
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
     parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
 
-    parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
+    parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19','transformernet'], default='transformernet')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
     parser.add_argument("--saving_freq", type=int, help="saving frequency for intermediate images (-1 means only final)", default=3)
     args = parser.parse_args()
