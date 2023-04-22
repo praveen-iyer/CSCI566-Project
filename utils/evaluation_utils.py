@@ -1,5 +1,4 @@
-from utils.utils import prepare_model
-from utils.utils import gram_matrix
+from utils.utils import prepare_img, prepare_model, gram_matrix
 import numpy as np
 import torch
 import cv2
@@ -99,4 +98,22 @@ def local_patterns(stylized_image, style_image, config, device):
         lp2 += num/den
 
     lp = (lp1+lp2)/(2*n_layers)
+    return lp
+
+def content_fidelity_files(stylized_img_path, content_img_path, config, device):
+    stylized_img = prepare_img(stylized_img_path, config['height'], device)
+    content_img = prepare_img(content_img_path, config['height'], device)
+    CF = content_fidelity(stylized_img, content_img, config, device)
+    return CF
+
+def global_effects_files(stylized_img_path,style_img_path,config,device):
+    stylized_img = prepare_img(stylized_img_path, config['height'], device)
+    style_img = prepare_img(style_img_path, config['height'], device)
+    GE = global_effects(stylized_img,style_img,config,device)
+    return GE
+
+def local_patterns_files(stylized_image_path, style_image_path, config, device):
+    stylized_image = prepare_img(stylized_image_path, config['height'], device)
+    style_image = prepare_img(style_image_path, config['height'], device)
+    lp = local_patterns(stylized_image, style_image, config, device)
     return lp
