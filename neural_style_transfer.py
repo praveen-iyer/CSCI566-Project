@@ -1,25 +1,38 @@
 from copy import deepcopy
-import time
-from utils.evaluation_utils import content_fidelity, global_effects, local_patterns
 import utils.utils as utils
-from utils.video_utils import create_video_from_intermediate_results
 
+import cv2 as cv
 import torch
 from torch.optim import LBFGS
 from torch.autograd import Variable
 import numpy as np
 import os
+import time
 import argparse
 
+from libs.models import encoder4
+from libs.models import decoder4
+from libs.Matrix import MulLayer
 
-def build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, styles_to_use):
-    target_content_representation = target_representations[0]
+import torchvision.transforms as transforms
+
+from vae import eval_vae
+
+IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
+IMAGENET_STD_NEUTRAL = [1, 1, 1]
+device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+
+
+def build_loss(neural_net, content_img, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, styles_to_use):
     target_style1_representation = target_representations[1]
     target_style2_representation = target_representations[2]
 
+    for_tcr = neural_net(content_img)
+    target_content_representation = for_tcr[content_feature_maps_index]
+
     current_set_of_feature_maps = neural_net(optimizing_img)
 
-    current_content_representation = current_set_of_feature_maps[content_feature_maps_index].squeeze(axis=0)
+    current_content_representation = current_set_of_feature_maps[content_feature_maps_index]
     content_loss = torch.nn.MSELoss(reduction='mean')(target_content_representation, current_content_representation)
 
     style1_loss = 0.0
@@ -47,7 +60,7 @@ def neural_style_transfer(config):
     style1_img_path = os.path.join(config['style_images_dir'], config['style1_img_name'])
     style2_img_path = os.path.join(config['style_images_dir'], config['style2_img_name'])
 
-    out_dir_name = f'combined_{config["architecture"]}_{config["model"]}_' + os.path.split(content_img_path)[1].split('.')[0] + '_' + os.path.split(style1_img_path)[1].split('.')[0] + '_' + os.path.split(style2_img_path)[1].split('.')[0]
+    out_dir_name = f'combined_{config["architecture"]}_' + os.path.split(content_img_path)[1].split('.')[0] + '_' + os.path.split(style1_img_path)[1].split('.')[0] + '_' + os.path.split(style2_img_path)[1].split('.')[0]
     dump_path = os.path.join(config['output_img_dir'], out_dir_name)
     os.makedirs(dump_path, exist_ok=True)
 
@@ -88,24 +101,53 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 100
+    num_of_iterations = 50
 
     if config['architecture']=="mo-net":
         # line_search_fn does not seem to have significant impact on result
         optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
-        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"], num_of_iterations, dump_path, None)
+        model_(neural_net,optimizer, content_img, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"], num_of_iterations, dump_path, None)
 
     elif config['architecture']=="cascade-net":
         #Cascade Layer 1
         optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
-        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1"], num_of_iterations, dump_path, True)
+        model_(neural_net,optimizer, content_img, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1"], num_of_iterations, dump_path, True)
 
         #Cascade Layer 2
+        content_img_next = deepcopy(optimizing_img)
         optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
-        model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
+        model_(neural_net,optimizer, content_img_next, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
         
     elif config['architecture']=="cascade-net_parallel":
         pass
+
+    elif config['architecture']=="cascade-net_vae":
+        #cascade layer 1 has to be vae, output image has to go to gram matrix
+        #Cascade Layer 1
+        optimizing_img = eval_vae(config,matrix,vgg,dec)
+
+        #Cascade Layer 2
+        optimizing_img = cv.cvtColor(np.array(optimizing_img), cv.COLOR_RGB2BGR) #convert PIL to OpenCV
+        optimizing_img = cv.cvtColor(np.array(optimizing_img), cv.COLOR_BGR2RGB) #convert BGR to RGB
+        current_height, current_width = optimizing_img.shape[:2]
+        new_height = config['height']
+        new_width = int(current_width * (new_height / current_height))
+        optimizing_img = cv.resize(optimizing_img, (new_width, new_height), interpolation=cv.INTER_CUBIC)
+        optimizing_img = optimizing_img.astype(np.float32)  # convert from uint8 to float32
+        optimizing_img /= 255.0  # get to [0, 1] range
+        transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: x.mul(255)),
+        transforms.Normalize(mean=IMAGENET_MEAN_255, std=IMAGENET_STD_NEUTRAL)])
+
+        optimizing_img = transform(optimizing_img).to(device).unsqueeze(0)
+        optimizing_img_next=deepcopy(optimizing_img)
+
+        optimizing_img_next = Variable(optimizing_img_next, requires_grad=True)
+        content_img_next = deepcopy(optimizing_img_next)
+
+        optimizer = LBFGS((optimizing_img_next,), max_iter=num_of_iterations, line_search_fn='strong_wolfe',history_size=10)
+        model_(neural_net,optimizer, content_img_next, optimizing_img_next, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
 
     start = time.time()
     cf = content_fidelity(optimizing_img, content_img, config, device)
@@ -120,16 +162,15 @@ def neural_style_transfer(config):
     lp_style1 = local_patterns(optimizing_img, style1_img, config, device)
     lp_style2 = local_patterns(optimizing_img, style2_img, config, device)
     print(f"Local Patterns: style1={lp_style1}, style2={lp_style2} calculated in {time.time() - start}s")
-
     return dump_path
 
-def model_(neural_net,optimizer, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names, num_of_iterations, dump_path, first):
+def model_(neural_net,optimizer, content_img, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names, num_of_iterations, dump_path, first):
     cnt = 0
     def closure():
         nonlocal cnt
         if torch.is_grad_enabled():
             optimizer.zero_grad()
-        total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names)
+        total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, content_img, optimizing_img, target_representations, content_feature_maps_index_name_0, style_feature_maps_indices_names_0, config, style_names)
         if total_loss.requires_grad:
             total_loss.backward()
         with torch.no_grad():
@@ -163,20 +204,35 @@ if __name__ == "__main__":
     #
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate.jpg')
-    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='flowers_crop.jpg')
-    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='vg_starry_night_resized.jpg')
-    parser.add_argument("--height", type=int, help="height of content and style images", default=155)
+    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='udnie.jpg')
+    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='mosaic.jpg')
+    parser.add_argument("--height", type=int, help="height of content and style images", default=400)
 
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
-    parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
+    parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4) #20e1
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--architecture", choices=["mo-net", "cascade-net"], type=str, help="architecture used for performing multi style transfer", default="cascade-net")
+    parser.add_argument("--architecture", choices=["mo-net", "cascade-net","cascade-net_vae"], type=str, help="architecture used for performing multi style transfer", default="cascade-net_vae")
 
-    parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19','transformernet'], default='transformernet')
+    parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
     parser.add_argument("--saving_freq", type=int, help="saving frequency for intermediate images (-1 means only final)", default=3)
+    
+    parser.add_argument("--vgg_dir", default='models/definitions/vgg_r41.pth', help='pre-trained encoder path')
+    parser.add_argument("--decoder_dir", default='models/definitions/dec_r41.pth', help='pre-trained decoder path')
+    parser.add_argument("--matrixPath", default='models/definitions/matrix_r41_new.pth', help='pre-trained model path')
+
     args = parser.parse_args()
+    vgg = encoder4()
+    dec = decoder4()
+    matrix = MulLayer(z_dim=256)
+    vgg.load_state_dict(torch.load(args.vgg_dir,map_location=torch.device('cpu')))
+    dec.load_state_dict(torch.load(args.decoder_dir,map_location=torch.device('cpu')))
+    matrix.load_state_dict(torch.load(args.matrixPath,map_location=torch.device('cpu')))
+
+    vgg.to(device)
+    dec.to(device)
+    matrix.to(device)
 
     # just wrapping settings into a dictionary
     optimization_config = dict()
