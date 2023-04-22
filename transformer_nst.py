@@ -1,5 +1,8 @@
-# python neural_style/neural_style.py eval --content-image "images/output-images/golden-gate-udnie.jpg" --output-image "images/output-images/golden-gate-udnie-mosaic.jpg" --model "saved_models/mosaic.pth" 
-# python neural_style/neural_style.py train --dataset "datasets" --style-image "images/style-image/vg_starry_night_resized.jpg" --model "saved_models" --epochs 2 --cuda 0 
+# Only mosaic : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth
+# Only udnie : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth
+# mosaic then udnie : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth 
+# udnie then mosaic : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-udnie.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth 
+
 import argparse
 import os
 import sys
@@ -14,9 +17,9 @@ from torchvision import datasets
 from torchvision import transforms
 import torch.onnx
 
-import utils
+import utils.transformer_utils as utils
 from models.definitions.transformer_net import TransformerNet
-from models.definitions.vgg_nets import Vgg16
+from models.definitions.vgg_tf import Vgg16
 
 
 def check_paths(args):
@@ -138,7 +141,7 @@ def stylize(args):
     content_image = content_image.unsqueeze(0).to(device)
 
     if args.model.endswith(".onnx"):
-        output = stylize_onnx(content_image, args)
+        pass #output = stylize_onnx(content_image, args)
     else:
         with torch.no_grad():
             style_model = TransformerNet()
