@@ -1,96 +1,37 @@
 from copy import deepcopy
 import utils.utils as utils
-from utils.video_utils import create_video_from_intermediate_results
 
+import cv2 as cv
 import torch
-from torch.optim import LBFGS, Adam
+from torch.optim import LBFGS
 from torch.autograd import Variable
 import numpy as np
 import os
 import argparse
 
-#for vae
-import argparse
-
-import os
-import torch
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-import numpy as np
-from os.path import join
-import time
-from PIL import Image, ImageOps
-import os
 from libs.models import encoder4
 from libs.models import decoder4
 from libs.Matrix import MulLayer
 
+import torchvision.transforms as transforms
+
+from vae import eval_vae
+
+IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
+IMAGENET_STD_NEUTRAL = [1, 1, 1]
 device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-
-def eval(config):
-
-    matrix.eval()
-    vgg.eval()
-    dec.eval()
-    cont_file = os.path.join(config['content_images_dir'], config['content_img_name'])
-    ref_file = os.path.join(config['style_images_dir'], config['style1_img_name'])
-    #print(content_path)
-    #content_path = os.path.join(opt.image_dataset, 'content')
-    # output_path = os.path.join(os.path.dirname(__file__), 'data',"output-images")
-    #ref_path = os.path.join(opt.image_dataset, 'style')
-
-    #for cont_file in os.listdir(content_path):
-    #    for ref_file in os.listdir(ref_path):
-    t0 = time.time()
-    content = Image.open(cont_file).convert('RGB')
-    ref = Image.open(ref_file).convert('RGB')
-
-    content = transform(content).unsqueeze(0).to(device)
-    ref = transform(ref).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        sF = vgg(ref)
-        cF = vgg(content)
-        feature, _, _ = matrix(cF['r41'], sF['r41'])
-        prediction = dec(feature)
-
-        prediction = prediction.data[0].cpu().permute(1, 2, 0)
-
-    t1 = time.time()
-    #print("===> Processing: %s || Timer: %.4f sec." % (str(i), (t1 - t0)))
-
-    prediction = prediction * 255.0
-    prediction = prediction.clamp(0, 255)
-
-    file_name = cont_file.split('.')[0] + '_' + ref_file.split('.')[0] + '.jpg'
-    # save_name = os.path.join("/Users/praveen/CSCI566-Project/data/output-images", file_name)
-    Image.fromarray(np.uint8(prediction)).save("/Users/praveen/CSCI566-Project/data/output-images/o1.jpg")
-    return Image.fromarray(np.uint8(prediction))
-
-
-
-transform = transforms.Compose([
-    transforms.ToTensor(), # range [0, 255] -> [0.0,1.0]
-    ]
-)
-
-
-
-
 
 
 def build_loss(neural_net, content_img, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config, styles_to_use):
-    # target_content_representation = target_representations[0]
     target_style1_representation = target_representations[1]
     target_style2_representation = target_representations[2]
 
     for_tcr = neural_net(content_img)
     target_content_representation = for_tcr[content_feature_maps_index]
 
-
     current_set_of_feature_maps = neural_net(optimizing_img)
 
-    current_content_representation = current_set_of_feature_maps[content_feature_maps_index].squeeze(axis=0)
+    current_content_representation = current_set_of_feature_maps[content_feature_maps_index]
     content_loss = torch.nn.MSELoss(reduction='mean')(target_content_representation, current_content_representation)
 
     style1_loss = 0.0
@@ -159,7 +100,7 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 300
+    num_of_iterations = 50
 
     if config['architecture']=="mo-net":
         # line_search_fn does not seem to have significant impact on result
@@ -180,32 +121,32 @@ def neural_style_transfer(config):
         pass
 
     elif config['architecture']=="cascade-net_vae":
-        pass
         #cascade layer 1 has to be vae, output image has to go to gram matrix
         #Cascade Layer 1
-        ##Eval Start!!!!
-        optimizing_img = eval(config)
+        optimizing_img = eval_vae(config,matrix,vgg,dec)
 
-        convert_tensor = transforms.ToTensor()
-        optimizing_img = convert_tensor(optimizing_img).to(device)
-
-        optimizing_img = optimizing_img.unsqueeze(0)
-
-        content_img_next = deepcopy(optimizing_img)
-        optimizing_img = Variable(optimizing_img, requires_grad=True)
-        
         #Cascade Layer 2
-        optimizer = Adam((optimizing_img,), lr=1e1)
-        for i in range(num_of_iterations):
-            total_loss, content_loss, style1_loss, style2_loss, tv_loss = build_loss(neural_net, content_img_next, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"])
-            total_loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-            if i%5==0:
-                print(f'Adam | iteration: {i:03}, total loss={total_loss:12.4f}, content_loss={config["content_weight"] * content_loss:12.4f}, style1 loss={config["style1_weight"] * style1_loss:12.4f}, style2 loss={config["style2_weight"] * style2_loss:12.4f}, tv loss={config["tv_weight"] * tv_loss:12.4f}')
-            utils.save_and_maybe_display(optimizing_img, dump_path, config, i, num_of_iterations, should_display=False, first = False)
-        # optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
-        # model_(neural_net,optimizer, content_img_next, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
+        optimizing_img = cv.cvtColor(np.array(optimizing_img), cv.COLOR_RGB2BGR) #convert PIL to OpenCV
+        optimizing_img = cv.cvtColor(np.array(optimizing_img), cv.COLOR_BGR2RGB) #convert BGR to RGB
+        current_height, current_width = optimizing_img.shape[:2]
+        new_height = config['height']
+        new_width = int(current_width * (new_height / current_height))
+        optimizing_img = cv.resize(optimizing_img, (new_width, new_height), interpolation=cv.INTER_CUBIC)
+        optimizing_img = optimizing_img.astype(np.float32)  # convert from uint8 to float32
+        optimizing_img /= 255.0  # get to [0, 1] range
+        transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: x.mul(255)),
+        transforms.Normalize(mean=IMAGENET_MEAN_255, std=IMAGENET_STD_NEUTRAL)])
+
+        optimizing_img = transform(optimizing_img).to(device).unsqueeze(0)
+        optimizing_img_next=deepcopy(optimizing_img)
+
+        optimizing_img_next = Variable(optimizing_img_next, requires_grad=True)
+        content_img_next = deepcopy(optimizing_img_next)
+
+        optimizer = LBFGS((optimizing_img_next,), max_iter=num_of_iterations, line_search_fn='strong_wolfe',history_size=10)
+        model_(neural_net,optimizer, content_img_next, optimizing_img_next, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style2"], num_of_iterations, dump_path, False)
 
     return dump_path
 
@@ -249,13 +190,13 @@ if __name__ == "__main__":
     #
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate.jpg')
-    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='ben_giles.jpg')
-    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='vg_starry_night_resized.jpg')
+    parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='udnie.jpg')
+    parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='mosaic.jpg')
     parser.add_argument("--height", type=int, help="height of content and style images", default=400)
 
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e5)
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
-    parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
+    parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4) #20e1
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
     parser.add_argument("--architecture", choices=["mo-net", "cascade-net","cascade-net_vae"], type=str, help="architecture used for performing multi style transfer", default="cascade-net_vae")
 
@@ -263,14 +204,6 @@ if __name__ == "__main__":
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
     parser.add_argument("--saving_freq", type=int, help="saving frequency for intermediate images (-1 means only final)", default=3)
     
-
-    # Training settings
-    #parser = argparse.ArgumentParser(description='LT-VAE Style transfer')
-    parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
-    parser.add_argument('--gpu_mode', type=bool, default=True)
-    parser.add_argument('--threads', type=int, default=6, help='number of threads for data loader to use')
-    parser.add_argument('--image_dataset', type=str, default='Test')
-    parser.add_argument("--latent", type=int, default=256, help='length of latent vector')
     parser.add_argument("--vgg_dir", default='models/definitions/vgg_r41.pth', help='pre-trained encoder path')
     parser.add_argument("--decoder_dir", default='models/definitions/dec_r41.pth', help='pre-trained decoder path')
     parser.add_argument("--matrixPath", default='models/definitions/matrix_r41_new.pth', help='pre-trained model path')
@@ -278,7 +211,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     vgg = encoder4()
     dec = decoder4()
-    matrix = MulLayer(z_dim=args.latent)
+    matrix = MulLayer(z_dim=256)
     vgg.load_state_dict(torch.load(args.vgg_dir,map_location=torch.device('cpu')))
     dec.load_state_dict(torch.load(args.decoder_dir,map_location=torch.device('cpu')))
     matrix.load_state_dict(torch.load(args.matrixPath,map_location=torch.device('cpu')))
@@ -286,8 +219,6 @@ if __name__ == "__main__":
     vgg.to(device)
     dec.to(device)
     matrix.to(device)
-    print('===> Loading datasets')
-
 
     # just wrapping settings into a dictionary
     optimization_config = dict()
