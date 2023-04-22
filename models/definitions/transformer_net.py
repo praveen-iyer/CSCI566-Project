@@ -1,18 +1,9 @@
-# 
-# Adaptation : https://github.com/diyiiyiii/StyTR-2/blob/main/
-
 import torch
-from torchvision import models
-from collections import namedtuple
+
 
 class TransformerNet(torch.nn.Module):
-    def __init__(self, requires_grad=False, show_progress=False):
+    def __init__(self):
         super(TransformerNet, self).__init__()
-        # vit_pretrained_features = models.vit_b_16(weights = "DEFAULT", progress=show_progress).features
-        self.layer_names = ['relu1', 'relu2', 'relu3', 'relu4','relu5','relu6']
-        self.content_feature_maps_index = 0  # relu2_2
-        self.style_feature_maps_indices = list(range(len(self.layer_names)))  # all layers used for style representation
-
         # Initial convolution layers
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
         self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
@@ -35,31 +26,19 @@ class TransformerNet(torch.nn.Module):
         # Non-linearities
         self.relu = torch.nn.ReLU()
 
-        if not requires_grad:
-            for param in self.parameters():
-                param.requires_grad = False
-
     def forward(self, X):
         y = self.relu(self.in1(self.conv1(X)))
-        relu1 = y
         y = self.relu(self.in2(self.conv2(y)))
-        relu2 = y
         y = self.relu(self.in3(self.conv3(y)))
-        relu3 = y
         y = self.res1(y)
         y = self.res2(y)
         y = self.res3(y)
         y = self.res4(y)
         y = self.res5(y)
         y = self.relu(self.in4(self.deconv1(y)))
-        relu4 = y
         y = self.relu(self.in5(self.deconv2(y)))
-        relu5 = y
         y = self.deconv3(y)
-        relu6 = y
-        trf_outputs = namedtuple("trfOutputs", self.layer_names)
-        out = trf_outputs(relu1, relu2, relu3, relu4, relu5, relu6)
-        return out
+        return y
 
 
 class ConvLayer(torch.nn.Module):
