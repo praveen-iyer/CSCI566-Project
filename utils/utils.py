@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 
 from models.definitions.vgg_nets import Vgg16, Vgg19, Vgg16Experimental
+from models.definitions.transformer_net import TransformerNet
 
 
 IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
@@ -121,6 +122,8 @@ def prepare_model(model, device):
             model = Vgg16(requires_grad=False, show_progress=True)
     elif model == 'vgg19':
         model = Vgg19(requires_grad=False, show_progress=True)
+    elif model == 'transformernet':
+        model = TransformerNet(requires_grad=False, show_progress=True)
     else:
         raise ValueError(f'{model} not supported.')
 
@@ -130,6 +133,7 @@ def prepare_model(model, device):
 
     content_fms_index_name = (content_feature_maps_index, layer_names[content_feature_maps_index])
     style_fms_indices_names = (style_feature_maps_indices, layer_names)
+    print(content_fms_index_name)
     return model.to(device).eval(), content_fms_index_name, style_fms_indices_names
 
 
