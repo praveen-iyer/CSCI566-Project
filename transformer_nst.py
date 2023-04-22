@@ -1,7 +1,7 @@
-# Only mosaic : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth
-# Only udnie : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth
-# mosaic then udnie : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth 
-# udnie then mosaic : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-udnie.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth 
+# Only mosaic : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth"
+# Only udnie : python transformer_nst.py eval --content-image "data/content-images/golden_gate.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth"
+# mosaic then udnie : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-mosaic.jpg" --output-image "data/output-images/trf_net/golden_gate-mosaic-udnie.jpg" --model "models/definitions/transformer_models/udnie.pth"
+# udnie then mosaic : python transformer_nst.py eval --content-image "data/output-images/trf_net/golden_gate-udnie.jpg" --output-image "data/output-images/trf_net/golden_gate-udnie-mosaic.jpg" --model "models/definitions/transformer_models/mosaic.pth"
 
 import argparse
 import os

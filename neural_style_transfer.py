@@ -102,13 +102,20 @@ def neural_style_transfer(config):
     target_representations = [target_content_representation, target_style1_representation, target_style2_representation]
 
     # magic numbers in general are a big no no - some things in this code are left like this by design to avoid clutter
-    num_of_iterations = 100
+    num_of_iterations = 50
 
-    if config['architecture']=="mo-net":
+    if config['architecture'] == "mo-net":
         # line_search_fn does not seem to have significant impact on result
         optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
         model_(neural_net,optimizer, content_img, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"], num_of_iterations, dump_path, None)
 
+    elif config['architecture'] == "single-style-transfer":
+        config["style1_weight"]/=2
+        config["style2_weight"]/=2
+        target_representations = [target_content_representation, target_style2_representation, target_style2_representation]
+        optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
+        model_(neural_net,optimizer, content_img, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config, ["style1","style2"], num_of_iterations, dump_path, None)
+    
     elif config['architecture']=="cascade-net":
         #Cascade Layer 1
         optimizer = LBFGS((optimizing_img,), max_iter=num_of_iterations, line_search_fn='strong_wolfe')
@@ -204,7 +211,7 @@ if __name__ == "__main__":
     # sorted so that the ones on the top are more likely to be changed than the ones on the bottom
     #
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate.jpg')
+    parser.add_argument("--content_img_name", type=str, help="content image name", default='golden_gate-udnie.jpg')
     parser.add_argument("--style1_img_name", type=str, help="style1 image name", default='udnie.jpg')
     parser.add_argument("--style2_img_name", type=str, help="style2 image name", default='mosaic.jpg')
     parser.add_argument("--height", type=int, help="height of content and style images", default=155)
@@ -213,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--style1_weight", type=float, help="weight factor for style1 loss", default=1.5e4)
     parser.add_argument("--style2_weight", type=float, help="weight factor for style2 loss", default=1.5e4)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=1e0)
-    parser.add_argument("--architecture", choices=["mo-net", "cascade-net","cascade-net_vae"], type=str, help="architecture used for performing multi style transfer", default="cascade-net_vae")
+    parser.add_argument("--architecture", choices=["mo-net", "cascade-net","cascade-net_vae","single-style-transfer"], type=str, help="architecture used for performing multi style transfer", default="single-style-transfer")
 
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')

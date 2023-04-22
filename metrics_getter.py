@@ -10,7 +10,8 @@ if __name__=="__main__":
     style1_path = os.path.join(data_path, "style-images", "udnie.jpg")
     style2_path = os.path.join(data_path, "style-images", "mosaic.jpg")
     # output_path = os.path.join(data_path, "output-images", "combined_mo-net_golden_gate_udnie_mosaic", "0102.jpg")
-    output_path = os.path.join(data_path, "output-images", "combined_cascade-net_golden_gate_udnie_mosaic", "0102_2.jpg")
+    # output_path = os.path.join(data_path, "output-images", "combined_cascade-net_golden_gate_udnie_mosaic", "0102_2.jpg")
+    output_path = "/Users/praveen/CSCI566-Project/data/output-images/trf_net/golden_gate-udnie-mosaic.jpg"
 
     start = time.time()
     cf = content_fidelity_files(output_path, content_path)
