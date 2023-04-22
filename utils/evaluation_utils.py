@@ -1,3 +1,5 @@
+import os
+import time
 from utils.utils import prepare_img, prepare_model, gram_matrix
 import numpy as np
 import torch
@@ -9,8 +11,8 @@ def calc_cosine_similarity(i1,i2):
     n2 = torch.linalg.norm(i2).item()
     return (temp)/(n1*n2)
 
-def content_fidelity(stylized_img, content_img, config, device):
-    neural_net, content_feature_maps_index_name, _ = prepare_model(config['model'], device)
+def content_fidelity(stylized_img, content_img, model, device):
+    neural_net, content_feature_maps_index_name, _ = prepare_model(model, device)
     content_img_set_of_feature_maps = neural_net(content_img)
     stylized_img_set_of_feature_maps = neural_net(stylized_img)
     
@@ -20,8 +22,8 @@ def content_fidelity(stylized_img, content_img, config, device):
     CF = calc_cosine_similarity(content_img_representation, stylized_img_representation)
     return CF
 
-def global_effects(stylized_img,style_img,config,device):
-    neural_net, _, style_feature_maps_indices_names = prepare_model(config['model'], device)
+def global_effects(stylized_img,style_img,model,device):
+    neural_net, _, style_feature_maps_indices_names = prepare_model(model, device)
     
     style_img_set_of_feature_maps = neural_net(style_img)
     target_style_representation = [gram_matrix(x) for cnt, x in enumerate(style_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
@@ -54,8 +56,8 @@ def patchify(x, patch_dim = 3):
     patches = patches.reshape(patches.shape[0]*patches.shape[1],patches.shape[2]*patches.shape[3]*patches.shape[4])
     return patches
 
-def local_patterns(stylized_image, style_image, config, device):
-    neural_net, _, style_feature_maps_indices_names = prepare_model(config['model'], device)
+def local_patterns(stylized_image, style_image, model, device):
+    neural_net, _, style_feature_maps_indices_names = prepare_model(model, device)
     
     stylized_img_set_of_feature_maps = neural_net(stylized_image)
     style_img_set_of_feature_maps = neural_net(style_image)
@@ -63,8 +65,8 @@ def local_patterns(stylized_image, style_image, config, device):
     stylized_img_relevant_feature_maps = [x.squeeze(0) for cnt, x in enumerate(stylized_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
     style_img_relevant_feature_maps = [x.squeeze(0) for cnt, x in enumerate(style_img_set_of_feature_maps) if cnt in style_feature_maps_indices_names[0]]
     
-    stylized_img_patches_all_layers = [patchify(x,10) for x in stylized_img_relevant_feature_maps]
-    style_img_patches_all_layers = [patchify(x,10) for x in style_img_relevant_feature_maps]
+    stylized_img_patches_all_layers = [patchify(x,3) for x in stylized_img_relevant_feature_maps]
+    style_img_patches_all_layers = [patchify(x,3) for x in style_img_relevant_feature_maps]
 
     n_layers = len(stylized_img_patches_all_layers)
     lp1,lp2 = 0,0
@@ -100,20 +102,20 @@ def local_patterns(stylized_image, style_image, config, device):
     lp = (lp1+lp2)/(2*n_layers)
     return lp
 
-def content_fidelity_files(stylized_img_path, content_img_path, config, device):
-    stylized_img = prepare_img(stylized_img_path, config['height'], device)
-    content_img = prepare_img(content_img_path, config['height'], device)
-    CF = content_fidelity(stylized_img, content_img, config, device)
+def content_fidelity_files(stylized_img_path, content_img_path, device="mps", height = 155, model = "vgg19"):
+    stylized_img = prepare_img(stylized_img_path, height, device)
+    content_img = prepare_img(content_img_path, height, device)
+    CF = content_fidelity(stylized_img, content_img, model, device)
     return CF
 
-def global_effects_files(stylized_img_path,style_img_path,config,device):
-    stylized_img = prepare_img(stylized_img_path, config['height'], device)
-    style_img = prepare_img(style_img_path, config['height'], device)
-    GE = global_effects(stylized_img,style_img,config,device)
+def global_effects_files(stylized_img_path,style_img_path,device = "mps", height = 155, model = "vgg19"):
+    stylized_img = prepare_img(stylized_img_path, height, device)
+    style_img = prepare_img(style_img_path, height, device)
+    GE = global_effects(stylized_img,style_img,model,device)
     return GE
 
-def local_patterns_files(stylized_image_path, style_image_path, config, device):
-    stylized_image = prepare_img(stylized_image_path, config['height'], device)
-    style_image = prepare_img(style_image_path, config['height'], device)
-    lp = local_patterns(stylized_image, style_image, config, device)
+def local_patterns_files(stylized_image_path, style_image_path, device = "mps", height = 155, model = "vgg19"):
+    stylized_image = prepare_img(stylized_image_path, height, device)
+    style_image = prepare_img(style_image_path, height, device)
+    lp = local_patterns(stylized_image, style_image, model, device)
     return lp

@@ -33,7 +33,7 @@ def eval_vae(config,matrix,vgg,dec):
     prediction = prediction * 255.0
     prediction = prediction.clamp(0, 255)
 
-    Image.fromarray(np.uint8(prediction)).save("/home/swarnita/CSCI566-Project/data/output-images/vae_output.jpg")
+    # Image.fromarray(np.uint8(prediction)).save("/home/swarnita/CSCI566-Project/data/output-images/vae_output.jpg")
     return Image.fromarray(np.uint8(prediction))
 
 transform = transforms.Compose([

@@ -4,8 +4,6 @@ import torch
 from torchvision import transforms
 import os
 import matplotlib.pyplot as plt
-
-
 from models.definitions.vgg_nets import Vgg16, Vgg19, Vgg16Experimental
 from models.definitions.transformer_net import TransformerNet
 
@@ -133,7 +131,6 @@ def prepare_model(model, device):
 
     content_fms_index_name = (content_feature_maps_index, layer_names[content_feature_maps_index])
     style_fms_indices_names = (style_feature_maps_indices, layer_names)
-    print(content_fms_index_name)
     return model.to(device).eval(), content_fms_index_name, style_fms_indices_names
 
 
