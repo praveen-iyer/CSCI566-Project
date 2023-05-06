@@ -14,10 +14,10 @@ Contributions:
 
 Serial Style Transfer (SST) was the chosen method to implement CST. The content image, style 1 image, style 2 image were fixed and the architecture 2 were fixed in our experiments. Additionally, the baseline was fixed as the Multi-Objective Network (MO) which is also implemented in this repository.
 
-![](readme-images/baseline.png)
+![](Readme-images/baseline.png)
 *Baseline for Multiple Style Transfer using MO model*
 
-![](readme-images/exp_design.png)
+![](Readme-images/exp_design.png)
 *Three different models explored as Architecture 1 in SST*
 
 ### Model 1: Gram Matrix with pretrained 248 VGG-19
